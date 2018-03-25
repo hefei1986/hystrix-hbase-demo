@@ -1,5 +1,7 @@
 package com.youzan.bigdata.hbase.hystrixdemo;
 
+import com.youzan.bigdata.hbase.hystrixdemo.impl.Item;
+
 import java.io.IOException;
 
 public interface ItemStorage {

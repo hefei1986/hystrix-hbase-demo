@@ -2,9 +2,7 @@ package com.youzan.bigdata.hbase.hystrixdemo.impl;
 
 import com.netflix.hystrix.HystrixCommand;
 import com.netflix.hystrix.HystrixCommandGroupKey;
-import com.youzan.bigdata.hbase.hystrixdemo.Item;
 import com.youzan.bigdata.hbase.hystrixdemo.ItemStorage;
-import com.youzan.bigdata.hbase.hystrixdemo.ItemStorageResult;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;

@@ -4,6 +4,7 @@ import com.netflix.hystrix.HystrixCommand;
 import com.netflix.hystrix.HystrixCommandGroupKey;
 import com.youzan.bigdata.hbase.hystrixdemo.Item;
 import com.youzan.bigdata.hbase.hystrixdemo.ItemStorage;
+import com.youzan.bigdata.hbase.hystrixdemo.ItemStorageResult;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
@@ -24,7 +25,7 @@ public class HystrixHBaseItemStorage implements ItemStorage {
 
     private Configuration slaveConfiguration;
 
-    class HyStrixGetCommand extends HystrixCommand<Item> {
+    class HyStrixGetCommand extends HystrixCommand<ItemStorageResult<Item>> {
 
         private String id;
         private Connection masterConn;
@@ -38,22 +39,25 @@ public class HystrixHBaseItemStorage implements ItemStorage {
         }
 
 
-        protected Item run() throws Exception {
-            Table itemTable = this.masterConn.getTable(TableName.valueOf(ITEM_TABLE));
+        private ItemStorageResult<Item> fetchItem(Connection conn, String id) throws IOException {
+            Table itemTable = conn.getTable(TableName.valueOf(ITEM_TABLE));
             try {
                 Get get = this.generateGetObj(this.id);
                 Result r = itemTable.get(get);
-
                 if (r == null) {
                     return null;
                 }
-
                 byte[] nameBytes = r.getValue(Bytes.toBytes(COLUMN_FAMILY), Bytes.toBytes("name"));
-
                 if (nameBytes == null) {
-                    throw new Exception("Column 'name' not found for item:" + this.id);
+                    throw new IOException("Column 'name' not found for item:" + this.id);
                 }
-                return new Item(this.id, Bytes.toString(nameBytes));
+                return new ItemStorageResult<Item>(new Item(this.id, Bytes.toString(nameBytes)), true, "", null);
+            } catch (IOException ioe) {
+                if(conn == masterConn && null != slaveConn){
+                    throw ioe; // retry
+                } else {
+                    return new ItemStorageResult<Item>(null, false, ioe.getMessage(), ioe);
+                }
             } finally {
                 if (itemTable != null) {
                     try {
@@ -65,13 +69,26 @@ public class HystrixHBaseItemStorage implements ItemStorage {
             }
         }
 
+        protected ItemStorageResult<Item> run() throws Exception {
+            return this.fetchItem(this.masterConn, this.id);
+        }
+
+        @Override
+        protected ItemStorageResult<Item> getFallback() {
+            try {
+                return this.fetchItem(this.slaveConn, this.id);
+            } catch(IOException ioe) {
+                // not gonna happen
+                return null;
+            }
+        }
 
         private Get generateGetObj(String id) {
             return new Get(Bytes.toBytes(id));
         }
     }
 
-    class HyStrixPutCommand extends HystrixCommand<Object> {
+    class HyStrixPutCommand extends HystrixCommand<ItemStorageResult<Object>> {
 
         private Item item;
         private Connection masterConn;
@@ -84,11 +101,16 @@ public class HystrixHBaseItemStorage implements ItemStorage {
             this.slaveConn = slaveConn;
         }
 
-
-        protected Object run() throws Exception {
-            Table itemTable = this.masterConn.getTable(TableName.valueOf(ITEM_TABLE));
+        private ItemStorageResult<Object> putItem(Connection conn) throws IOException {
+            Table itemTable = conn.getTable(TableName.valueOf(ITEM_TABLE));
             try {
                 itemTable.put(this.generatePutObj(this.item));
+            } catch (IOException ioe) {
+                if(conn == masterConn && slaveConn != null) {
+                    throw ioe;
+                } else {
+                    return new ItemStorageResult<Object>(null, false, ioe.getMessage(), ioe);
+                }
             } finally {
                 if (itemTable != null) {
                     try {
@@ -98,7 +120,22 @@ public class HystrixHBaseItemStorage implements ItemStorage {
                     }
                 }
             }
-            return null;
+            return new ItemStorageResult<Object>(null, true, "", null);
+        }
+
+        protected ItemStorageResult<Object> run() throws Exception {
+            return this.putItem(this.masterConn);
+        }
+
+        @Override
+        protected ItemStorageResult<Object> getFallback() {
+            ItemStorageResult<Object> result = null;
+            try {
+                result = this.putItem(this.slaveConn);
+            } catch(IOException ioe) {
+                // not gonna happen
+            }
+            return  result;
         }
 
         private Put generatePutObj(Item item) {
@@ -125,10 +162,18 @@ public class HystrixHBaseItemStorage implements ItemStorage {
     }
 
     public void insert(Item item) throws IOException {
-        new HyStrixPutCommand(item, this.masterConn, this.slaveConn).execute();
+        ItemStorageResult<Object> result = new HyStrixPutCommand(item, this.masterConn, this.slaveConn).execute();
+        if(!result.isSuccess()) {
+            throw new IOException(result.getLastException());
+        }
     }
 
     public Item getById(String id) throws IOException {
-        return new HyStrixGetCommand(id, this.masterConn, this.slaveConn).execute();
+        ItemStorageResult<Item> itemItemStorageResult = new HyStrixGetCommand(id, this.masterConn, this.slaveConn).execute();
+        if(!itemItemStorageResult.isSuccess()) {
+            throw new IOException(itemItemStorageResult.getLastException());
+        } else {
+            return itemItemStorageResult.getResult();
+        }
     }
 }

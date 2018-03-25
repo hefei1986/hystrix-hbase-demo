@@ -1,6 +1,6 @@
-package com.youzan.bigdata.hbase.hystrixdemo;
+package com.youzan.bigdata.hbase.hystrixdemo.hbase;
 
-import com.youzan.bigdata.hbase.hystrixdemo.impl.Item;
+import com.youzan.bigdata.hbase.hystrixdemo.hbase.impl.Item;
 
 import java.io.IOException;
 

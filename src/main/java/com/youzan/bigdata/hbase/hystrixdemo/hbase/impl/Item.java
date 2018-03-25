@@ -1,9 +1,10 @@
-package com.youzan.bigdata.hbase.hystrixdemo.impl;
+package com.youzan.bigdata.hbase.hystrixdemo.hbase.impl;
 
 public class Item {
 
     private String id;
     private String name;
+
 
     public Item(String id, String name) {
         this.id = id;

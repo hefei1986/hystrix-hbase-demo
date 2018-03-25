@@ -1,4 +1,4 @@
-package com.youzan.bigdata.hbase.hystrixdemo.impl;
+package com.youzan.bigdata.hbase.hystrixdemo.hbase.impl;
 
 public class ItemStorageResult <T> {
 

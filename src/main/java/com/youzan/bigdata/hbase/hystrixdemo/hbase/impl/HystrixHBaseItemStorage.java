@@ -1,8 +1,8 @@
-package com.youzan.bigdata.hbase.hystrixdemo.impl;
+package com.youzan.bigdata.hbase.hystrixdemo.hbase.impl;
 
 import com.netflix.hystrix.HystrixCommand;
 import com.netflix.hystrix.HystrixCommandGroupKey;
-import com.youzan.bigdata.hbase.hystrixdemo.ItemStorage;
+import com.youzan.bigdata.hbase.hystrixdemo.hbase.ItemStorage;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
@@ -23,13 +23,13 @@ public class HystrixHBaseItemStorage implements ItemStorage {
 
     private Configuration slaveConfiguration;
 
-    class HyStrixGetCommand extends HystrixCommand<ItemStorageResult<Item>> {
+    class HystrixGetCommand extends HystrixCommand<ItemStorageResult<Item>> {
 
         private String id;
         private Connection masterConn;
         private Connection slaveConn;
 
-        public HyStrixGetCommand(String id, Connection masterConn, Connection slaveConn) {
+        public HystrixGetCommand(String id, Connection masterConn, Connection slaveConn) {
             super(HystrixCommandGroupKey.Factory.asKey("HBaseAccess"));
             this.id = id;
             this.masterConn = masterConn;
@@ -167,7 +167,7 @@ public class HystrixHBaseItemStorage implements ItemStorage {
     }
 
     public Item getById(String id) throws IOException {
-        ItemStorageResult<Item> itemItemStorageResult = new HyStrixGetCommand(id, this.masterConn, this.slaveConn).execute();
+        ItemStorageResult<Item> itemItemStorageResult = new HystrixGetCommand(id, this.masterConn, this.slaveConn).execute();
         if(!itemItemStorageResult.isSuccess()) {
             throw new IOException(itemItemStorageResult.getLastException());
         } else {
